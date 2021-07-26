@@ -5,7 +5,7 @@ from qiskit.aqua import QuantumAlgorithm, QuantumInstance
 from qiskit.circuit.library import QFT
 from qiskit.providers import Backend, BaseBackend
 
-from ma_impl.arithmetic.brg_mod_exp import mod_exp_brg
+from shor.arithmetic.brg_mod_exp import mod_exp_brg
 
 import math
 import numpy as np

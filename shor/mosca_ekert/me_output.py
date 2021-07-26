@@ -1,6 +1,5 @@
-from arithmetic.hrs_mod_exp import mod_exp_hrs
-from ma_impl.mosca_ekert.mosca_ekert import DiscreteLogMoscaEkertSharedRegister, DiscreteLogMoscaEkertSeperateRegister
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, assemble, Aer, transpile, execute
+from shor.mosca_ekert.mosca_ekert import DiscreteLogMoscaEkertSharedRegister, DiscreteLogMoscaEkertSeperateRegister
+from qiskit import Aer, transpile, execute
 import json
 
 

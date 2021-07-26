@@ -1,13 +1,7 @@
-from arithmetic.brg_mod_exp import mod_exp_brg
-from qiskit.circuit.library import QFT
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, assemble, Aer, transpile, execute
-from qiskit.circuit.library import XGate
-import numpy as np
-import math
+from qiskit import Aer
 
-from arithmetic.hrs_mod_exp import mod_exp_hrs
-from ma_impl.mosca_ekert.mosca_ekert import DiscreteLogMoscaEkertSharedRegister
-from util import set_input
+from shor.arithmetic.hrs_mod_exp import mod_exp_hrs
+from shor.mosca_ekert.mosca_ekert import DiscreteLogMoscaEkertSharedRegister
 
 simulator = Aer.get_backend('aer_simulator')
 

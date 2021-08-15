@@ -12,6 +12,12 @@ import numpy as np
 from abc import ABC, abstractmethod
 from fractions import Fraction
 
+from shor.arithmetic.brg_mod_mult import mult_mod_N_c
+
+
+def mod_mul_brg(n, a, p):
+    return mult_mod_N_c(a, p)
+
 
 class DiscreteLogMoscaEkert(QuantumAlgorithm):
     def __init__(self,
@@ -310,4 +316,257 @@ class DiscreteLogMoscaEkertSeperateRegister(DiscreteLogMoscaEkert):
 
         return me_circuit
 
+class DiscreteLogMoscaEkertSemiClassicalQFT(DiscreteLogMoscaEkert):
+    def __init__(self,
+                 b: int,
+                 g: int,
+                 p: int,
+                 r: int = -1,
+                 n: int = -1,
+                 mod_exp_constructor: Callable[[int, int, int], QuantumCircuit] = None,
+                 full_run: bool = False,
+                 quantum_instance: Optional[
+                     Union[QuantumInstance, Backend, BaseBackend, Backend]] = None) -> None:
+        super().__init__(b, g, p, r, n, mod_exp_constructor, full_run, quantum_instance)
 
+    def _exec_qc(self, n, b, g, p, r, mod_exp_constructor, quantum_instance, shots) -> [(int, int, int)]:
+        me_circuit = transpile(self._construct_circuit(n, b, g, p, r, mod_exp_constructor),
+                               quantum_instance.backend)
+        counts = quantum_instance.backend.run(me_circuit, shots=shots).result().get_counts(me_circuit)
+
+        res = list()
+        for result in counts.keys():
+            # split result measurements (is split bit by bit in this version)
+            result_s = result.split(" ")
+
+            #print("Result: ", result)
+
+            # starts with stage 2
+            m_stage2_bin = ""
+            for i in range(0, n):
+                m_stage2_bin = m_stage2_bin + result_s[i]
+
+            m_stage1_bin = ""
+            for i in range(0, n):
+                m_stage1_bin = m_stage1_bin + result_s[n+i]
+
+            #print(m_stage2_bin)
+            #print(m_stage1_bin)
+
+            m_stage1 = int(m_stage1_bin, 2)
+            m_stage2 = int(m_stage2_bin, 2)
+
+            res.append((m_stage1, m_stage2, counts[result]))
+
+        return res
+
+    @staticmethod
+    def iqft_semi_classical(n: int, circ: QuantumCircuit, reg: QuantumRegister, cllist: [ClassicalRegister]):
+        for i in reversed(range(0, n)):  # range is reversed as the first step of IQFT is a swap of the order
+            swapped_i = n - i - 1  # index of this qubit after swap would have been performed
+
+            # inverse rotations controlled by less significant qubits (classical now)
+            # the rotations are performed with j's in the classical register - those are already implicitly swapped
+            # therefore the swapped index is used here
+            for j in range(0, swapped_i):
+                # The register this qubit was measured in
+                clreg = cllist[j]
+                circ.p(-np.pi / (2 ** (swapped_i - j)), reg[i]).c_if(clreg, 1)
+
+            circ.h(reg[i])
+
+            # measure it in corresponding classical reg
+            circ.measure(reg[i], cllist[swapped_i])
+
+    def _construct_circuit(self, n: int, b: int, g: int, p: int, r: int, mod_exp_constructor) -> QuantumCircuit:
+        # infer size of circuit from modular exponentiation circuit
+        mod_exp_g = mod_exp_constructor(n, g, p)
+        mod_exp_b = mod_exp_constructor(n, b, p)
+
+        iqft = QFT(n).inverse()
+
+        total_circuit_qubits = mod_exp_g.num_qubits
+        bottom_register_qubits = total_circuit_qubits - n
+
+        topreg = QuantumRegister(n, "top")
+        botreg = QuantumRegister(bottom_register_qubits, "bot")
+
+        cl_stage1 = []  # they have to be adressed as individual classical registers in c_if
+        cl_stage2 = []
+
+        me_circuit = QuantumCircuit(topreg, botreg)
+
+        # init measurement registers as collection of single qubit registers
+        for i in range(0, n):
+            cl1 = ClassicalRegister(1, "f%d" % i)
+            cl2 = ClassicalRegister(1, "s%d" % i)
+
+            cl_stage1.append(cl1)
+            cl_stage2.append(cl2)
+
+        # Add measurement qubits per stage
+        for i in range(0, n):
+            me_circuit.add_register(cl_stage1[i])
+        for i in range(0, n):
+            me_circuit.add_register(cl_stage2[i])
+
+        # First stage
+
+        # H on top
+        me_circuit.h(topreg)
+
+        # 1 on bottom
+        me_circuit.x(botreg[0])
+
+        # mod exp g^x mod p
+        me_circuit.append(mod_exp_g, list(topreg) + list(botreg))
+
+        # semiclassical iqft top register into cl_stage1
+        self.iqft_semi_classical(n, me_circuit, topreg, cl_stage1)
+
+        # reset top
+        me_circuit.reset(topreg)
+
+        # second stage
+
+        # h on top2
+        me_circuit.h(topreg)
+
+        # mod exp b^x' mod p
+        me_circuit.append(mod_exp_b, list(topreg) + list(botreg))
+
+        # semiclassical iqft top register into cl_stage2
+        self.iqft_semi_classical(n, me_circuit, topreg, cl_stage2)
+
+        return me_circuit
+
+class DiscreteLogMoscaEkertOneQubitQFT(DiscreteLogMoscaEkert):
+    def __init__(self,
+                 b: int,
+                 g: int,
+                 p: int,
+                 r: int = -1,
+                 n: int = -1,
+                 mod_mul_constructor: Callable[[int, int, int], QuantumCircuit] = None,
+                 full_run: bool = False,
+                 quantum_instance: Optional[
+                     Union[QuantumInstance, Backend, BaseBackend, Backend]] = None) -> None:
+        """
+        Needs direct access to the function construction a modular multiplication
+        """
+        super().__init__(b, g, p, r, n, mod_mul_constructor, full_run, quantum_instance)
+
+        if mod_mul_constructor is None:
+            self._mod_exp_constructor = mod_mul_brg
+        else:
+            self._mod_exp_constructor = mod_mul_constructor
+
+    def _exec_qc(self, n, b, g, p, r, mod_mul_constructor, quantum_instance, shots) -> [(int, int, int)]:
+        me_circuit = transpile(self._construct_circuit(n, b, g, p, r, mod_mul_constructor),
+                               quantum_instance.backend)
+        counts = quantum_instance.backend.run(me_circuit, shots=shots).result().get_counts(me_circuit)
+
+        res = list()
+        for result in counts.keys():
+            # split result measurements (is split bit by bit in this version)
+            result_s = result.split(" ")
+
+            #print("Result: ", result)
+
+            # starts with stage 2
+            m_stage2_bin = ""
+            for i in range(0, n):
+                m_stage2_bin = m_stage2_bin + result_s[i]
+
+            m_stage1_bin = ""
+            for i in range(0, n):
+                m_stage1_bin = m_stage1_bin + result_s[n+i]
+
+            #print(m_stage2_bin)
+            #print(m_stage1_bin)
+
+            m_stage1 = int(m_stage1_bin, 2)
+            m_stage2 = int(m_stage2_bin, 2)
+
+            res.append((m_stage1, m_stage2, counts[result]))
+
+        return res
+
+    @staticmethod
+    def one_qubit_qft_stage(n: int, a: int, p: int,
+                            me_circuit: QuantumCircuit, topreg_single_qubit: QuantumRegister, botreg: QuantumRegister,
+                            cllist: [ClassicalRegister], mod_mul_constructor):
+        # act like there is a whole register while there actually is only this one qubit
+        # this makes the code more similar to the other versions
+        topreg = [topreg_single_qubit[0] for i in range(0, n)]
+
+        for i in reversed(range(0, n)):
+            # init control to H
+            me_circuit.h(topreg[i])
+
+            # exec gate
+            mulgate = mod_mul_constructor(n, a**(2**i) % p, p) # U_g^(2^i)
+
+            me_circuit.append(mulgate, [topreg[i], *botreg])
+
+            swapped_i = n - i - 1  # index of this qubit after swap would have been performed
+            # inverse rotations controlled by less significant qubits (classical now)
+
+            # the rotations are performed with j's in the classical register - those are already implicitly swapped
+            # therefore the swapped index is used here
+            for j in range(0, swapped_i):
+                # The register this qubit was measured in
+                clreg = cllist[j]
+                me_circuit.p(-np.pi / (2 ** (swapped_i - j)), topreg[i]).c_if(clreg, 1)
+
+            me_circuit.h(topreg[i])
+
+            # measure it in corresponding classical reg
+            me_circuit.measure(topreg[i], cllist[swapped_i])
+
+            # reset to 0 so the rest of the algorithm can reuse this qubit
+            me_circuit.reset(topreg[i])
+
+            me_circuit.barrier()  # for visualisation purposes
+
+    def _construct_circuit(self, n: int, b: int, g: int, p: int, r: int, mod_mul_constructor) -> QuantumCircuit:
+        # infer size of circuit from modular exponentiation circuit
+        mod_mul_dummy = mod_mul_constructor(n, g, p)
+
+        iqft = QFT(n).inverse()
+
+        total_circuit_qubits = mod_mul_dummy.num_qubits  #mod mul has botreg + 1 qubits already
+        bottom_register_qubits = total_circuit_qubits - 1
+
+        topreg = QuantumRegister(1, "top")
+        botreg = QuantumRegister(bottom_register_qubits, "bot")
+
+        cl_stage1 = []  # they have to be adressed as individual classical registers in c_if
+        cl_stage2 = []
+
+        me_circuit = QuantumCircuit(topreg, botreg)
+
+        # init measurement registers as collection of single qubit registers
+        for i in range(0, n):
+            cl1 = ClassicalRegister(1, "f%d" % i)
+            cl2 = ClassicalRegister(1, "s%d" % i)
+
+            cl_stage1.append(cl1)
+            cl_stage2.append(cl2)
+
+        # Add measurement qubits per stage
+        for i in range(0, n):
+            me_circuit.add_register(cl_stage1[i])
+        for i in range(0, n):
+            me_circuit.add_register(cl_stage2[i])
+
+        # First stage
+        me_circuit.x(botreg[0])
+
+        # performs stage1 = apply gate to superposition and do iqft in one qubit
+        self.one_qubit_qft_stage(n, g, p, me_circuit, topreg, botreg, cl_stage1, mod_mul_constructor)
+
+        # Second stage
+        self.one_qubit_qft_stage(n, b, p, me_circuit, topreg, botreg, cl_stage2, mod_mul_constructor)
+
+        return me_circuit

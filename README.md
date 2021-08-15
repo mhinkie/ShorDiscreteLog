@@ -93,5 +93,44 @@ Refer to
 
 on how the different implementations can be used.
 
+### QFT optimizations
+There are two versions of the algorithm, that optimize the the inverse QFT required at the end of each stage.
+
+The first one performs the inverse QFT semi-classically, by conditioning the rotations not on quantum register, but measured values in classical registers:
+```python
+from qiskit import Aer, QuantumCircuit
+
+from shor.arithmetic.hrs_mod_exp import mod_exp_hrs
+from shor.mosca_ekert.mosca_ekert import DiscreteLogMoscaEkertSemiClassicalQFT
+
+simulator = Aer.get_backend('aer_simulator')
+
+def mod_exp_qc(n: int, a: int, p: int) -> QuantumCircuit:
+    return mod_exp_hrs(n, n, a, p)
+
+me_algo = DiscreteLogMoscaEkertSemiClassicalQFT(b=4, g=2, p=17, quantum_instance=simulator)
+result = me_algo.run()
+
+print(result)
+```
+
+The second one restructures the algorithm such that only one control register is required (see Section 5.2) in the references paper by Mosca and Ekert.
+```python
+from qiskit import Aer, QuantumCircuit
+
+from shor.arithmetic.hrs_mod_exp import mod_exp_hrs
+from shor.mosca_ekert.mosca_ekert import DiscreteLogMoscaEkertOneQubitQFT
+
+simulator = Aer.get_backend('aer_simulator')
+
+me_algo = DiscreteLogMoscaEkertOneQubitQFT(b=4, g=2, p=17, quantum_instance=simulator)
+result = me_algo.run()
+
+print(result)
+```
+
+Note that in this version the algorithm uses multiplication gates directly (not by using exponentiation gates). This means that not the implementation of the 
+modular exponentiation gate can be manually supplied but instead the implementation of the modular multiplication gate as `mod_mul_constructor`.
+
 #### Requirements
 Qiskit, Numpy for the implementations. Sympy and Pytest for the tests.

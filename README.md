@@ -114,7 +114,7 @@ result = me_algo.run()
 print(result)
 ```
 
-The second one restructures the algorithm such that only one control register is required (see Section 5.2) in the references paper by Mosca and Ekert.
+The second one restructures the algorithm such that only one control register is required (see Section 5.2 in the references paper by Mosca and Ekert).
 ```python
 from qiskit import Aer, QuantumCircuit
 

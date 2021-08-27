@@ -54,8 +54,6 @@ def mult_montgomery_partial_c(n, classical_y_montg, p):
         sub_gate = phi_addition_controlled_ignorebits(n + n + 1 - i, subtract_by, -1, 1)  # always ignore the lsb
         mult.append(sub_gate, qubits)  # = subtraction because factor = -1
 
-    mult.barrier()
-
     # transform back from qft space to extract sign
     mult.append(QFT(n + 1, do_swaps=False).inverse(), bigreg[n:])
 

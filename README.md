@@ -6,6 +6,9 @@ The implementation of the algorithm itself is based on
 and the Appendix of 
 "A Quantum “Magic Box” for the Discrete Logarithm Problem" (Burton S. Kaliski Jr.)
 
+#### Requirements
+Qiskit (Version 0.36.2) and Numpy for the implementations. Sympy and Pytest for the tests.
+
 ## Modular Exponentiation
 The repository contains three gates performing modular exponentiation:
 
@@ -94,7 +97,7 @@ Refer to
 on how the different implementations can be used.
 
 ### QFT optimizations
-There are two versions of the algorithm, that optimize the the inverse QFT required at the end of each stage.
+There are two versions of the algorithm, that optimize the inverse QFT required at the end of each stage.
 
 The first one performs the inverse QFT semi-classically, by conditioning the rotations not on quantum register, but measured values in classical registers:
 ```python
@@ -132,5 +135,3 @@ print(result)
 Note that in this version the algorithm uses multiplication gates directly (not by using exponentiation gates). This means that not the implementation of the 
 modular exponentiation gate can be manually supplied but instead the implementation of the modular multiplication gate as `mod_mul_constructor`.
 
-#### Requirements
-Qiskit, Numpy for the implementations. Sympy and Pytest for the tests.

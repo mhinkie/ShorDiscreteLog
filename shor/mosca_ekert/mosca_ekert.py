@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Union, Callable
 
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
-from qiskit.aqua import QuantumAlgorithm, QuantumInstance
+from qiskit.utils import QuantumInstance
 from qiskit.circuit.library import QFT
 from qiskit.providers import Backend, BaseBackend
 
@@ -19,7 +19,7 @@ def mod_mul_brg(n, a, p):
     return mult_mod_N_c(a, p)
 
 
-class DiscreteLogMoscaEkert(QuantumAlgorithm):
+class DiscreteLogMoscaEkert():
     def __init__(self,
                  b: int,
                  g: int,
@@ -43,13 +43,13 @@ class DiscreteLogMoscaEkert(QuantumAlgorithm):
                 but will examine all results and log the probability
             quantum_instance: Quantum Instance or Backend
         """
-        super().__init__(quantum_instance)
         self._b = b
         self._g = g
         self._p = p
         self._r = r
         self._n = n
         self._full_run = full_run
+        self._quantum_instance = quantum_instance
 
         if mod_exp_constructor is None:
             self._mod_exp_constructor = mod_exp_brg
@@ -92,6 +92,10 @@ class DiscreteLogMoscaEkert(QuantumAlgorithm):
 
         print("Found r=", smallest_fitting_denominator)
         return smallest_fitting_denominator
+
+    # Manually reproduced since quantumalgorithm interface changed
+    def run(self) -> Dict:
+        return self._run()
 
     def _run(self) -> Dict:
         # construct circuit
@@ -174,8 +178,8 @@ class DiscreteLogMoscaEkertSharedRegister(DiscreteLogMoscaEkert):
 
     def _exec_qc(self, n, b, g, p, r, mod_exp_constructor, quantum_instance, shots) -> [(int, int, int)]:
         me_circuit = transpile(self._construct_circuit(n, b, g, p, r, mod_exp_constructor),
-                               quantum_instance.backend)
-        counts = quantum_instance.backend.run(me_circuit, shots=shots).result().get_counts(me_circuit)
+                               quantum_instance)
+        counts = quantum_instance.run(me_circuit, shots=shots).result().get_counts(me_circuit)
 
         res = list()
         for result in counts.keys():
@@ -255,8 +259,8 @@ class DiscreteLogMoscaEkertSeperateRegister(DiscreteLogMoscaEkert):
 
     def _exec_qc(self, n, b, g, p, r, mod_exp_constructor, quantum_instance, shots) -> [(int, int, int)]:
         me_circuit = transpile(self._construct_circuit(n, b, g, p, r, mod_exp_constructor),
-                               quantum_instance.backend)
-        counts = quantum_instance.backend.run(me_circuit, shots=shots).result().get_counts(me_circuit)
+                               quantum_instance)
+        counts = quantum_instance.run(me_circuit, shots=shots).result().get_counts(me_circuit)
 
         res = list()
         for result in counts.keys():
@@ -331,8 +335,8 @@ class DiscreteLogMoscaEkertSemiClassicalQFT(DiscreteLogMoscaEkert):
 
     def _exec_qc(self, n, b, g, p, r, mod_exp_constructor, quantum_instance, shots) -> [(int, int, int)]:
         me_circuit = transpile(self._construct_circuit(n, b, g, p, r, mod_exp_constructor),
-                               quantum_instance.backend)
-        counts = quantum_instance.backend.run(me_circuit, shots=shots).result().get_counts(me_circuit)
+                               quantum_instance)
+        counts = quantum_instance.run(me_circuit, shots=shots).result().get_counts(me_circuit)
 
         res = list()
         for result in counts.keys():
@@ -463,8 +467,8 @@ class DiscreteLogMoscaEkertOneQubitQFT(DiscreteLogMoscaEkert):
 
     def _exec_qc(self, n, b, g, p, r, mod_mul_constructor, quantum_instance, shots) -> [(int, int, int)]:
         me_circuit = transpile(self._construct_circuit(n, b, g, p, r, mod_mul_constructor),
-                               quantum_instance.backend)
-        counts = quantum_instance.backend.run(me_circuit, shots=shots).result().get_counts(me_circuit)
+                               quantum_instance)
+        counts = quantum_instance.run(me_circuit, shots=shots).result().get_counts(me_circuit)
 
         res = list()
         for result in counts.keys():

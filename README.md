@@ -6,6 +6,11 @@ The implementation of the algorithm itself is based on
 and the Appendix of 
 "A Quantum “Magic Box” for the Discrete Logarithm Problem" (Burton S. Kaliski Jr.)
 
+The **implementation details** and an analysis of the gates is found in 
+
+Mandl, A. (2021). *Quantum algorithms for the discrete logarithm problem* [Diploma Thesis, Technische Universität Wien]. reposiTUm. https://doi.org/10.34726/hss.2021.89440
+
+
 #### Requirements
 Qiskit (Version 0.36.2) and Numpy for the implementations. Sympy and Pytest for the tests.
 
